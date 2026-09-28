@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rethinking Where to Edit: Task-Aware Localization for Instruction-Based Image Editing</title>
+<meta name="description" content="Training-free, task-aware edit localization for instruction-based image editing (ACM MM 2026).">
+<meta name="keywords" content="instruction-based image editing, edit localization, diffusion transformer, training-free, ACM MM 2026">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rethinking Where to Edit: Task-Aware Localization for Instruction-Based Image Editing">
+<meta property="og:description" content="Training-free, task-aware edit localization for instruction-based image editing (ACM MM 2026).">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&display=swap">
+<style>
+:root {
+  --ink: #1a2130;
+  --ink-soft: #4a5467;
+  --ink-faint: #7a8396;
+  --paper: #fcfcfb;
+  --plate: #ffffff;
+  --rule: #e2e5ec;
+  --panel: #f3f5f9;
+  --mask: #c8372d;        /* edit-mask red from the paper figures */
+  --src: #d9832b;         /* source stream, amber */
+  --src-bg: #fdeedd;
+  --tgt: #4a6fc4;         /* target stream, blue */
+  --tgt-bg: #e3ebfb;
+  --up: #1f7a3a;
+  --down: #b3261e;
+  --ours-bg: #fbeceb;
+  --serif: "Newsreader", "Times New Roman", Georgia, serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ink: #e6e9f0; --ink-soft: #b3bacb; --ink-faint: #8a93a6;
+    --paper: #12161e; --plate: #ffffff; --rule: #2a313e; --panel: #1a202b;
+    --mask: #ef6a5e; --src: #f0a860; --src-bg: #3a2a18; --tgt: #8aa8ec; --tgt-bg: #1d2a45;
+    --up: #6cc98a; --down: #f08a80; --ours-bg: #2e1d1d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e6e9f0; --ink-soft: #b3bacb; --ink-faint: #8a93a6;
+  --paper: #12161e; --plate: #ffffff; --rule: #2a313e; --panel: #1a202b;
+  --mask: #ef6a5e; --src: #f0a860; --src-bg: #3a2a18; --tgt: #8aa8ec; --tgt-bg: #1d2a45;
+  --up: #6cc98a; --down: #f08a80; --ours-bg: #2e1d1d;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 17px/1.65 var(--sans);
+  padding-inline: 20px;
+  padding-block: 0 48px;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--tgt); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--tgt); outline-offset: 3px; border-radius: 4px; }
+
+.wrap { margin-inline: auto; width: 100%; }
+.text { max-width: 720px; }
+.mid  { max-width: 860px; }
+.wide { max-width: 1040px; }
+.full { max-width: 1240px; }
+
+main { display: flex; flex-direction: column; gap: 28px; }
+main > .text + .wide, main > .text + .mid, main > .text + .full { margin-top: -6px; }
+
+/* Hero */
+.hero { max-width: 980px; text-align: center; padding-block: 64px 36px; }
+.venue {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 0 0 22px; padding: 5px 14px;
+  border: 1px solid var(--rule); border-radius: 999px;
+  font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-soft);
+}
+.venue-dot { width: 8px; height: 8px; border-radius: 2px; background: var(--mask); }
+h1 {
+  font-family: var(--serif); font-weight: 600; font-size: clamp(38px, 6.4vw, 64px);
+  line-height: 1.05; letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.subtitle {
+  font-family: var(--serif); font-style: italic; font-weight: 400;
+  font-size: clamp(20px, 2.8vw, 28px); line-height: 1.3; color: var(--ink-soft);
+  margin: 10px auto 28px; max-width: 30ch; text-wrap: balance;
+}
+.authors, .affils { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; justify-content: center; }
+.authors { gap: 4px 22px; font-size: 18px; font-weight: 500; }
+.authors a { color: var(--ink); text-decoration-color: var(--rule); }
+.affils { gap: 2px 20px; margin-top: 8px; font-size: 15px; color: var(--ink-soft); }
+.affils .note { color: var(--ink-faint); }
+sup { font-size: .68em; margin-left: 1px; }
+
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px; border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  font-size: 15px; font-weight: 500; text-decoration: none;
+  transition: transform .15s ease, background .15s ease;
+}
+.btn svg { width: 18px; height: 18px; }
+a.btn:hover { transform: translateY(-1px); background: var(--mask); color: #fff; }
+.btn-off { background: transparent; color: var(--ink-faint); border: 1px dashed var(--ink-faint); cursor: default; }
+.btn-off em { font-style: normal; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+
+/* Headings and text */
+h2 {
+  font-family: var(--serif); font-weight: 600; font-size: 30px; line-height: 1.2;
+  margin: 28px 0 10px; text-wrap: balance;
+}
+h3 { font-size: 17px; font-weight: 600; margin: 0; }
+p { margin: 0 0 14px; }
+.text p { text-wrap: pretty; }
+
+/* Figures */
+figure { margin: 0; }
+.plate {
+  background: var(--plate); border: 1px solid var(--rule); border-radius: 10px;
+  padding: clamp(8px, 1.6vw, 18px); overflow: hidden;
+}
+.caption { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); margin: 12px auto 0; max-width: 760px; }
+
+/* Stream tags and rule cards */
+.tag, .chip {
+  display: inline-block; font-size: .82em; font-weight: 500; padding: 1px 9px; border-radius: 5px;
+}
+.tag.src, .chip.src { background: var(--src-bg); color: var(--src); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--src) 35%, transparent); }
+.tag.tgt, .chip.tgt { background: var(--tgt-bg); color: var(--tgt); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tgt) 35%, transparent); }
+.rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.rule {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--panel); border-radius: 10px; padding: 20px 20px 18px;
+}
+.rule p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--ink-soft); }
+.rule .stream { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rule .cup { color: var(--ink-faint); font-size: 18px; }
+.rule .formula { font-family: var(--serif); font-size: 21px; color: var(--ink); }
+.rule .formula sub { font-size: .6em; font-family: var(--sans); }
+
+/* Method steps (a real pipeline, so numbered) */
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 4px 0 0; display: grid; gap: 14px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+.steps li::before {
+  content: counter(s); font-family: var(--serif); font-weight: 600; font-size: 18px;
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px solid var(--mask); color: var(--mask); margin-top: 1px;
+}
+
+/* Table */
+.table-scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 820px; font-size: 14.5px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 12px; text-align: center; white-space: nowrap; }
+th { font-weight: 600; font-size: 13px; color: var(--ink-soft); background: var(--panel); border-bottom: 1px solid var(--rule); }
+th.grp { border-bottom: 1px solid var(--rule); }
+.l { text-align: left; }
+tbody tr.sep td { border-bottom: 1px solid var(--rule); }
+tbody tr.ours td { background: var(--ours-bg); font-weight: 600; }
+td i { font-style: normal; font-size: 11.5px; font-weight: 500; margin-left: 2px; }
+td i.up { color: var(--up); } td i.down { color: var(--down); } td i.eq { color: var(--ink-faint); }
+
+/* BibTeX */
+.bib-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.copy {
+  font: 500 14px var(--sans); color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: 999px; padding: 5px 14px; cursor: pointer;
+}
+.copy:hover { border-color: var(--ink-faint); }
+pre {
+  margin: 0; background: var(--panel); border-radius: 10px; padding: 18px 20px; overflow-x: auto;
+  font: 13.5px/1.6 var(--mono); color: var(--ink);
+}
+.foot p { font-size: 15px; color: var(--ink-soft); }
+.foot { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--rule); }
+.foot p { font-size: 13.5px; color: var(--ink-faint); margin: 0; }
+
+@media (max-width: 760px) {
+  body { font-size: 16px; padding-inline: 16px; }
+  .hero { padding-block: 40px 24px; }
+  .rules { grid-template-columns: 1fr; }
+  h2 { font-size: 26px; }
+}
+</style>
+</head>
+<body>
+<header class="hero wrap">
+  <p class="venue"><span class="venue-dot" aria-hidden="true"></span>ACM Multimedia 2026</p>
+  <h1>Rethinking Where to Edit</h1>
+  <p class="subtitle">Task-Aware Localization for Instruction-Based Image Editing</p>
+
+  <ul class="authors">
+    <!-- To link an author, wrap the name: <a href="https://...">Jingxuan He</a> -->
+    <li>Jingxuan He<sup>1</sup></li>
+    <li>Xiyu Wang<sup>1</sup></li>
+    <li>Mengyu Zheng<sup>2</sup></li>
+    <li>Xiangyu Zeng<sup>1</sup></li>
+    <li>Yunke Wang<sup>1</sup></li>
+    <li>Chang Xu<sup>1,*</sup></li>
+  </ul>
+  <ul class="affils">
+    <li><sup>1</sup>The University of Sydney</li>
+    <li><sup>2</sup>Beijing Jiaotong University</li>
+    <li class="note"><sup>*</sup>Corresponding author</li>
+  </ul>
+
+  <nav class="links" aria-label="Paper resources">
+    <a class="btn" href="https://arxiv.org/abs/2604.20258" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l5 5v15H6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6M9 13h8M9 17h6" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      arXiv
+    </a>
+    <!-- Uncomment once the DOI resolves in the ACM Digital Library:
+    <a class="btn" href="https://doi.org/10.1145/3767308.3835797" target="_blank" rel="noopener">ACM DL</a>
+    -->
+    <a class="btn" href="https://github.com/Jessie459/TAL" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5m8-10 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Code
+    </a>
+  </nav>
+</header>
+
+<main>
+  <section class="wrap wide">
+    <figure class="plate">
+      <img src="static/images/teaser.jpg" width="2200" height="1121" alt="Two editing examples. Adding a lamp: the base model also beautifies the person; ours adds the lamp and keeps the face unchanged. Removing lotus flowers: the base model shifts the elephant statue; ours removes the flowers and keeps the statue in place.">
+    </figure>
+    <p class="caption">A strong base editor (Qwen-Image-Edit) follows the instruction but also changes content it was never asked to touch, such as the person's appearance or the position of the statue. Our framework predicts <em>where</em> the edit should happen and keeps everything else anchored to the source image.</p>
+  </section>
+
+  <section class="wrap text" aria-labelledby="abstract">
+    <h2 id="abstract">Abstract</h2>
+    <p>Instruction-based image editing (IIE) aims to modify an image according to a natural language instruction. Despite recent advances in diffusion transformers, existing methods often introduce unintended changes to regions unrelated to the requested edit. We attribute this limitation to the absence of an explicit mechanism for edit localization. Different editing operations (e.g., subject addition, removal, and replacement) induce distinct spatial patterns, yet existing IIE models typically perform localization in a task-agnostic manner.</p>
+    <p>To address this limitation, we propose a <strong>training-free, task-aware edit localization framework</strong> that exploits the intrinsic source and target image streams of IIE models. For each image stream, we construct feature centroids from attention-based edit cues, and then partition tokens into edit and non-edit regions based on feature similarity. Observing that effective localization is inherently task-dependent, we introduce a unified mask construction strategy that selectively leverages the source and target streams according to the editing task. We also provide a systematic analysis of our underlying insights and design choices. Extensive experiments on EdiVal-Bench demonstrate that our framework consistently improves content consistency in non-edit regions while maintaining strong instruction-following performance on top of Step1X-Edit and Qwen-Image-Edit.</p>
+  </section>
+
+  <section class="wrap text" aria-labelledby="insight">
+    <h2 id="insight">Key Insight: Localization Is Task-Dependent</h2>
+    <p>Modern DiT-based editors process text, <span class="tag tgt">target</span> image tokens and <span class="tag src">source</span> image tokens in one joint attention sequence. Edit semantics do not emerge uniformly across these streams. Where to look depends on what the instruction asks for.</p>
+  </section>
+
+  <section class="wrap wide">
+    <div class="rules">
+      <article class="rule">
+        <h3>Subject addition</h3>
+        <p class="stream"><span class="chip tgt">target stream</span></p>
+        <p class="formula">M̂ = M̂<sub>tgt</sub></p>
+        <p>The new object does not exist in the source image, so its footprint appears where it emerges in the target stream.</p>
+      </article>
+      <article class="rule">
+        <h3>Subject removal</h3>
+        <p class="stream"><span class="chip src">source stream</span></p>
+        <p class="formula">M̂ = M̂<sub>src</sub></p>
+        <p>The object to erase lives in the source image, so the source stream carries the localization signal.</p>
+      </article>
+      <article class="rule">
+        <h3>Subject replacement</h3>
+        <p class="stream"><span class="chip src">source</span><span class="cup">∪</span><span class="chip tgt">target</span></p>
+        <p class="formula">M̂ = M̂<sub>tgt</sub> ∪ M̂<sub>src</sub></p>
+        <p>Replacement couples a disappearance in the source with an emergence in the target, so both streams are combined.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap text" aria-labelledby="method">
+    <h2 id="method">Method</h2>
+    <p>Our framework plugs into a pretrained dual-stream editor at inference time. It needs no training and no extra supervision, and its runtime and memory cost stay comparable to the base model.</p>
+  </section>
+
+  <section class="wrap wide">
+    <figure class="plate">
+      <img src="static/images/overview.jpg" width="2200" height="1370" alt="Framework overview with four stages: attention-based semantic estimation, feature-based semantic assignment, task-aware mask construction, and mask-guided latent preservation inside a DiT image editor.">
+    </figure>
+  </section>
+
+  <section class="wrap text">
+    <ol class="steps">
+      <li><div><strong>Attention-based semantic estimation.</strong> We slice the joint attention matrix into text-to-image cross-attention and within-stream self-attention, then propagate the text signal one step through the self-attention graph. Aggregating over layers and instruction tokens gives a coarse attention mask for each image stream.</div></li>
+      <li><div><strong>Feature-based semantic assignment.</strong> Attention reflects relevance more than object structure, so we treat the coarse mask as a seed. Masked average pooling over deep DiT features yields an edit centroid and a non-edit centroid, and every token is assigned to the closer one by cosine similarity.</div></li>
+      <li><div><strong>Task-aware mask construction.</strong> The stream-wise masks are selected or merged according to the editing task, following the rules above, and lightly cleaned with connected-component filtering, hole filling and a small dilation.</div></li>
+      <li><div><strong>Mask-guided latent preservation.</strong> At a few early denoising steps, tokens outside the mask are replaced with an inverted source latent aligned to the current noise level, while tokens inside the mask evolve freely.</div></li>
+    </ol>
+  </section>
+
+  <section class="wrap text" aria-labelledby="analysis">
+    <h2 id="analysis">Where Do Edit Semantics Emerge?</h2>
+    <p>Using SAM 3 pseudo ground-truth masks on Qwen-Image-Edit, we measure how well each signal localizes the edit across denoising timesteps. Two patterns hold across tasks: deep latent features (red) localize more accurately than attention maps with or without propagation, and the informative stream switches with the task.</p>
+  </section>
+
+  <section class="wrap wide">
+    <figure class="plate">
+      <img src="static/images/quantitative_analysis.png" width="2000" height="825" loading="lazy" alt="IoU curves over denoising timesteps for subject addition, removal and replacement, comparing attention masks without propagation, with propagation, and feature-based masks for source and target streams.">
+    </figure>
+    <p class="caption">IoU of attention-derived and feature-derived masks against pseudo ground truth. Feature-based masks lead in most settings; addition is best read from the target stream and removal from the source stream.</p>
+  </section>
+
+  <section class="wrap mid">
+    <figure class="plate">
+      <img src="static/images/qualitative_analysis.jpg" width="2200" height="2257" loading="lazy" alt="Qualitative comparison of attention-derived and feature-derived masks from source and target streams for an addition example (notebook) and a removal example (brick beige house).">
+    </figure>
+    <p class="caption">Feature-derived masks have cleaner boundaries and fuller coverage than attention maps. The added “notebook” appears in the target stream, while the removed “brick beige house” is captured in the source stream.</p>
+  </section>
+
+  <section class="wrap text" aria-labelledby="results">
+    <h2 id="results">Results on EdiVal-Bench</h2>
+    <p>We apply the framework to Step1X-Edit and Qwen-Image-Edit and evaluate on EdiVal-Bench (572 real images, nine edit types). Content consistency (CC) improves on both backbones, and instruction following (IF) is maintained or slightly improved.</p>
+  </section>
+
+  <section class="wrap wide">
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2" scope="col" class="l">Method</th>
+            <th rowspan="2" scope="col" class="l">Base model</th>
+            <th rowspan="2" scope="col">EdiVal-IF ↑</th>
+            <th colspan="3" scope="colgroup" class="grp">EdiVal-CC ↑</th>
+            <th rowspan="2" scope="col">EdiVal-O ↑</th>
+            <th rowspan="2" scope="col">Perceptual<br>quality ↑</th>
+          </tr>
+          <tr>
+            <th scope="col">Object</th><th scope="col">Background</th><th scope="col">Overall</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="l">InstructPix2Pix</td><td class="l">SD 1.5</td><td>39.34</td><td>77.71</td><td>87.79</td><td>82.75</td><td>57.06</td><td>7.86</td></tr>
+          <tr><td class="l">MagicBrush</td><td class="l">SD 1.5</td><td>42.66</td><td>82.90</td><td>93.62</td><td>88.26</td><td>61.36</td><td>7.89</td></tr>
+          <tr><td class="l">UltraEdit</td><td class="l">SD 3</td><td>51.57</td><td>83.04</td><td>93.57</td><td>88.31</td><td>67.48</td><td>7.91</td></tr>
+          <tr class="sep"><td class="l">ICEdit</td><td class="l">Flux.1 Fill</td><td>53.50</td><td>88.21</td><td>93.92</td><td>91.07</td><td>69.80</td><td>7.91</td></tr>
+
+          <tr><td class="l">Step1X-Edit</td><td class="l">Step1X-Edit</td><td>59.09</td><td>90.73</td><td>97.32</td><td>94.03</td><td>74.54</td><td>7.86</td></tr>
+          <tr><td class="l">+ GRAG</td><td class="l">Step1X-Edit</td><td>59.62 <i class="up">+0.53</i></td><td>91.63 <i class="up">+0.90</i></td><td>97.58 <i class="up">+0.26</i></td><td>94.60 <i class="up">+0.57</i></td><td>75.10 <i class="up">+0.56</i></td><td>7.90 <i class="up">+0.04</i></td></tr>
+          <tr class="ours sep"><td class="l">+ Ours</td><td class="l">Step1X-Edit</td><td>60.84 <i class="up">+1.75</i></td><td>91.77 <i class="up">+1.04</i></td><td>97.80 <i class="up">+0.48</i></td><td>94.79 <i class="up">+0.76</i></td><td>75.94 <i class="up">+1.40</i></td><td>7.86 <i class="eq">+0.00</i></td></tr>
+
+          <tr><td class="l">Qwen-Image-Edit</td><td class="l">Qwen-Image-Edit</td><td>70.80</td><td>86.51</td><td>93.78</td><td>90.14</td><td>79.89</td><td>7.96</td></tr>
+          <tr><td class="l">+ GRAG</td><td class="l">Qwen-Image-Edit</td><td>67.31 <i class="down">−3.49</i></td><td>91.17 <i class="up">+4.66</i></td><td>95.49 <i class="up">+1.71</i></td><td>93.33 <i class="up">+3.19</i></td><td>79.26 <i class="down">−0.63</i></td><td>7.96 <i class="eq">+0.00</i></td></tr>
+          <tr class="ours"><td class="l">+ Ours</td><td class="l">Qwen-Image-Edit</td><td>71.15 <i class="up">+0.35</i></td><td>91.78 <i class="up">+5.27</i></td><td>96.96 <i class="up">+3.18</i></td><td>94.37 <i class="up">+4.23</i></td><td>81.94 <i class="up">+2.05</i></td><td>7.94 <i class="down">−0.02</i></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caption">EdiVal-IF, EdiVal-CC and EdiVal-O measure instruction following, content consistency and overall performance. Perceptual quality is a 0 to 10 naturalness score from a vision-language model. Differences are relative to each base model.</p>
+  </section>
+
+  <section class="wrap text" aria-labelledby="qualitative">
+    <h2 id="qualitative">Qualitative Comparison</h2>
+    <p>Each case shows the edited image next to its pixel-wise difference from the input. Brighter areas mean larger changes. Our difference maps concentrate on the requested region, while the base model also alters the fox, the woman's appearance and other untouched content.</p>
+  </section>
+
+  <section class="wrap full">
+    <figure class="plate">
+      <img src="static/images/qualitative_results.jpg" width="3000" height="1614" loading="lazy" alt="Qualitative comparison of Qwen-Image-Edit, GRAG and ours on four instructions: add umbrella above the fox, remove chocolate cake, replace cat with decorative pumpkin, change background to garden, each with a difference map.">
+    </figure>
+  </section>
+
+  <section class="wrap text" aria-labelledby="bibtex">
+    <div class="bib-head">
+      <h2 id="bibtex">BibTeX</h2>
+      <button type="button" id="copy-bib" class="copy">Copy</button>
+    </div>
+<pre id="bib-text"><code>@article{he2026rethinking,
+  title   = {Rethinking Where to Edit: Task-Aware Localization for Instruction-Based Image Editing},
+  author  = {He, Jingxuan and Wang, Xiyu and Zheng, Mengyu and Zeng, Xiangyu and Wang, Yunke and Xu, Chang},
+  journal = {arXiv preprint arXiv:2604.20258},
+  year    = {2026}
+}</code></pre>
+  </section>
+</main>
+
+<footer class="wrap text foot">
+  <p>© 2026 The authors. Published under CC BY 4.0.</p>
+</footer>
+
+<script>
+  (function () {
+    var btn = document.getElementById('copy-bib');
+    var pre = document.getElementById('bib-text');
+    if (!btn || !pre) return;
+    btn.addEventListener('click', function () {
+      var text = pre.innerText;
+      function done(label) { btn.textContent = label; setTimeout(function () { btn.textContent = 'Copy'; }, 1600); }
+      function selectFallback() {
+        var r = document.createRange(); r.selectNodeContents(pre);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        done('Selected');
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done('Copied'); }, selectFallback);
+      } else { selectFallback(); }
+    });
+  })();
+</script>
+
+</body>
+</html>
