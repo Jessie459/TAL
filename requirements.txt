@@ -1,0 +1,26 @@
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+# Inference
+torch==2.6.0
+torchvision==0.21.0
+transformers==4.57.6
+accelerate==1.15.0
+safetensors==0.8.0
+einops==0.8.2
+modelscope==1.40.1
+huggingface_hub==0.36.2
+numpy==2.2.6
+pandas==2.3.3
+pillow==12.3.0
+tqdm==4.70.1
+matplotlib==3.10.9
+
+# Evaluation (also install flash-attn and GroundingDINO, see README)
+opencv-python==4.13.0.92
+qwen-vl-utils==0.0.14
+regex
+timm==1.0.25
+supervision==0.27.0.post1
+addict==2.4.0
+yapf==0.43.0
+pycocotools==2.0.11
